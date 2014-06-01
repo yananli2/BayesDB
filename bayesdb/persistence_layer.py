@@ -25,6 +25,7 @@ import json
 import pickle
 import shutil
 import contextlib
+import numpy
 
 import data_utils
 import utils
@@ -436,6 +437,14 @@ class PersistenceLayer():
         raw_T_full = metadata_full['raw_T_full']
         colnames_full = utils.get_all_column_names_in_original_order(M_c_full)
 
+        # See if there's a key - if so, don't allow any other column to be assigned as key in the next step
+        if 'key' in cctypes_full:
+            index_key = cctypes_full.index('key')
+            colname_key = colnames_full[index_key]
+        else:
+            index_key = None
+            colname_key = None
+
         # Now, update cctypes_full (cctypes updated later, after removing ignores).
         mapping_set = 'continuous', 'multinomial', 'ignore', 'key'
         for col, mapping in mappings.items():
@@ -443,7 +452,18 @@ class PersistenceLayer():
                 raise utils.BayesDBError('Error: column %s does not exist.' % col)
             if mapping not in mapping_set:
                 raise utils.BayesDBError('Error: datatype %s is not one of the valid datatypes: %s.' % (mapping, str(mapping_set)))
-                
+
+            # If mapping is 'key', and there isn't already a key set, check that all values are unique
+            if mapping == 'key':
+                if colname_key == None:
+                    # Verify that the key is unique
+                    index_key = colnames_full.index(col)
+                    index_vals = [rec[index_key] for rec in raw_T_full]
+                    if len(index_vals) > len(set(index_vals)):
+                        raise utils.BayesDBError('Error: column %s has duplicate values and cannot be assigned as key' % col)
+                elif colname_key != col:
+                    raise utils.BayesDBError('Error: %s has already been assigned as the key' % colname_key)
+
             cidx = M_c_full['name_to_idx'][col.lower()]
             cctypes_full[cidx] = mapping
 
