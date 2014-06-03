@@ -23,6 +23,7 @@ import copy
 import pandas
 import re
 import numpy
+import prettytable
 
 import utils
 
@@ -504,6 +505,41 @@ def is_key_eligible(x):
 	castable = get_can_cast_to_int(x) or not get_can_cast_to_float(x)
 	return values_unique and castable
 
-def select_key_column(raw_T_full, header):
-	T_df = pandas.DataFrame(data=raw_T_full, columns=header)
-	print T_df.apply(is_key_eligible)
+def select_key_column(raw_T_full, colnames_full, cctypes_full):
+	"""
+	This function takes the raw data, colnames, and data types from an input CSV file from
+	which a btable is being created.
+
+	It looks for every column that's eligible to be a table key, and prompts the user to select one,
+	or create a new key. If no eligible key is found, a new one is created by default.
+
+	That way a btable can't be created without a key column.
+	"""
+	T_df = pandas.DataFrame(data=raw_T_full, columns=colnames_full)
+	eligibility = T_df.apply(is_key_eligible)
+
+	key_columns = list(eligibility[eligibility].index)
+	key_columns_len = len(key_columns)
+	if key_columns_len == 0:
+		print "None of the columns in this table is eligible to be the key. A key column will be created. Press Enter to continue."
+		user_confirmation = raw_input()
+	else:
+		pt = prettytable.PrettyTable()
+		pt.field_names = ['choice', 'key column']
+		for index, key_column in enumerate(key_columns):
+			pt.add_row([index, key_column])
+		pt.add_row([key_columns_len, 'Create key column'])
+		print str(pt)
+		print "Please select which column you would like to set as the table key:"
+		user_selection = int(raw_input())
+		if user_selection in range(key_columns_len):
+			key_column = key_columns[user_selection]
+			cctypes_full[colnames_full.index(key_column)] = 'key'
+		elif user_selection == key_columns_len:
+			# Create a new table key column.
+			T_df.insert(0, 'key', range(T_df.shape[0]))
+			raw_T_full = T_df.to_records()
+			colnames_full.insert(0, 'key')
+			cctypes_full.insert(0, 'key')
+
+	return raw_T_full, colnames_full, cctypes_full
