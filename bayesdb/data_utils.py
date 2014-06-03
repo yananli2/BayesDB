@@ -445,7 +445,15 @@ def get_can_cast_to_float(column_data):
     except ValueError, e:
         can_cast = False
     return can_cast
-    
+
+def get_can_cast_to_int(column_data):
+    can_cast = True
+    try:
+        [int(datum) for datum in column_data]
+    except ValueError, e:
+        can_cast = False
+    return can_cast
+
 def guess_column_type(column_data, count_cutoff=20, ratio_cutoff=0.02):
     num_distinct = len(set(column_data))
     num_data = len(column_data)
@@ -487,3 +495,15 @@ extract_view_count = lambda X_L: len(X_L['view_state'])
 extract_cluster_count = lambda view_state_i: view_state_i['row_partition_model']['counts']
 extract_cluster_counts = lambda X_L: map(extract_cluster_count, X_L['view_state'])
 get_state_shape = lambda X_L: (extract_view_count(X_L), extract_cluster_counts(X_L))
+
+def is_key_eligible(x):
+	# A column is eligible to be the table key if:
+	# All values are unique, AND
+	# it can be cast to int OR can't be cast to float
+	values_unique = len(x) == len(set(x))
+	castable = get_can_cast_to_int(x) or not get_can_cast_to_float(x)
+	return values_unique and castable
+
+def select_key_column(raw_T_full, header):
+	T_df = pandas.DataFrame(data=raw_T_full, columns=header)
+	print T_df.apply(is_key_eligible)

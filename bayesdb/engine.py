@@ -233,6 +233,10 @@ class Engine(object):
     raw_T_full = data_utils.convert_nans(raw_T_full)
     if cctypes_full is None:
       cctypes_full = data_utils.guess_column_types(raw_T_full)
+
+    # Find columns eligible to be key, and ask the user to select one (if none are eligible, create a new numeric key)
+    data_utils.select_key_column(raw_T_full, header)
+
     T_full, M_r_full, M_c_full, _ = data_utils.gen_T_and_metadata(colnames_full, raw_T_full, cctypes=cctypes_full)
 
     # variables without "_full" don't include ignored columns.
