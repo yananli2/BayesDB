@@ -357,7 +357,7 @@ def map_to_T_with_M_c(T_uncast_array, M_c):
     T_uncast_array = numpy.array(T_uncast_array)
     # WARNING: array argument is mutated
     for col_idx in range(T_uncast_array.shape[1]):
-        modeltype = M_c['column_metadata'][col_idx]['modeltype']
+		modeltype = M_c['column_metadata'][col_idx]['modeltype']
         if modeltype == 'normal_inverse_gamma': continue
         # copy.copy else you mutate M_c
         mapping = copy.copy(M_c['column_metadata'][col_idx]['code_to_value'])
@@ -538,7 +538,7 @@ def select_key_column(raw_T_full, colnames_full, cctypes_full):
 		elif user_selection == key_columns_len:
 			# Create a new table key column.
 			T_df.insert(0, 'key', range(T_df.shape[0]))
-			raw_T_full = T_df.to_records()
+			raw_T_full = T_df.to_records(index=False)
 			colnames_full.insert(0, 'key')
 			cctypes_full.insert(0, 'key')
 
