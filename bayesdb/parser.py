@@ -746,7 +746,7 @@ class Parser(object):
         
         return function_list
 
-    def parse_functions(self, function_groups, M_c_full=None, T_full=None, column_lists=None):
+    def parse_functions(self, function_groups, M_c_full=None, T_full=None, column_lists=None, colnames_full=None, cctypes_full=None, key_column=None):
         '''
         Generates two lists of functions, arguments, aggregate tuples. 
         Returns queries, query_colnames
@@ -759,9 +759,10 @@ class Parser(object):
         For probability: query_args is a (c_idx, value) tuple.
         For similarity: query_args is a (target_row_id, target_column) tuple.
         '''
-        ## Always return row_id as the first column.
-        query_colnames = ['row_id'] 
-        queries = [(functions._row_id, None, False)]
+        ## Always return key as the first column.
+        query_colnames = [key_column]
+        key_index = cctypes_full.index('key')
+        queries = [(functions._column, key_index, False)]
 
         for function_group in function_groups:
             if function_group.function_id == 'predictive probability':
@@ -813,8 +814,8 @@ class Parser(object):
                 column_name = function_group.column_id
                 assert M_c_full is not None
                 index_list, name_list = self.parse_column_set(column_name, M_c_full, column_lists)
-                queries += [(functions._column, column_index , False) for column_index in index_list]
-                query_colnames += [name for name in name_list]
+                queries += [(functions._column, column_index , False) for column_index in index_list if column_index != key_index]
+                query_colnames += [name for name in name_list if name != key_column]
             else:
                 raise utils.BayesDBParseError("Invalid query: could not parse function")
         return queries, query_colnames

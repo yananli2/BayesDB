@@ -357,18 +357,19 @@ def map_to_T_with_M_c(T_uncast_array, M_c):
     T_uncast_array = numpy.array(T_uncast_array)
     # WARNING: array argument is mutated
     for col_idx in range(T_uncast_array.shape[1]):
-		modeltype = M_c['column_metadata'][col_idx]['modeltype']
-		if modeltype == 'normal_inverse_gamma': continue
-		# copy.copy else you mutate M_c
-		mapping = copy.copy(M_c['column_metadata'][col_idx]['code_to_value'])
-		mapping['NAN'] = numpy.nan
-		col_data = T_uncast_array[:, col_idx]
-		to_upper = lambda el: el.upper()
-		is_nan_str = numpy.array(map(to_upper, col_data))=='NAN'
-		col_data[is_nan_str] = 'NAN'
-		# FIXME: THIS IS WHERE TO PUT NAN HANDLING
-		mapped_values = [mapping[el] for el in col_data]
-		T_uncast_array[:, col_idx] = mapped_values
+        modeltype = M_c['column_metadata'][col_idx]['modeltype']
+        print col_idx, modeltype
+        if modeltype == 'normal_inverse_gamma': continue
+        # copy.copy else you mutate M_c
+        mapping = copy.copy(M_c['column_metadata'][col_idx]['code_to_value'])
+        mapping['NAN'] = numpy.nan
+        col_data = T_uncast_array[:, col_idx]
+        to_upper = lambda el: el.upper()
+        is_nan_str = numpy.array(map(to_upper, col_data))=='NAN'
+        col_data[is_nan_str] = 'NAN'
+        # FIXME: THIS IS WHERE TO PUT NAN HANDLING
+        mapped_values = [mapping[el] for el in col_data]
+        T_uncast_array[:, col_idx] = mapped_values
     T = numpy.array(T_uncast_array, dtype=float).tolist()
     return T
 
@@ -387,12 +388,12 @@ def get_list_indices(in_list, get_indices_of):
 def transpose_list(in_list):
     return zip(*in_list)
 
-def get_pop_indices(cctypes, colnames):
+def get_pop_indices(cctypes, colnames, pop_types):
     assert len(colnames) == len(cctypes)
     pop_columns = [
             colname
             for (cctype, colname) in zip(cctypes, colnames)
-            if (cctype == 'ignore' or cctype == 'key')
+            if (cctype in pop_types)
             ]
     pop_indices = get_list_indices(colnames, pop_columns)
     return pop_indices
@@ -403,8 +404,8 @@ def do_pop_columns(T, pop_indices):
     T = transpose_list(T_by_columns)
     return T
 
-def remove_ignore_cols(T, cctypes, colnames):
-    pop_indices = get_pop_indices(cctypes, colnames)
+def remove_ignore_cols(T, cctypes, colnames, pop_types=['ignore', 'key']):
+    pop_indices = get_pop_indices(cctypes, colnames, pop_types)
     T = do_pop_columns(T, pop_indices)
     colnames = do_pop_list_indices(colnames[:], pop_indices)
     cctypes = do_pop_list_indices(cctypes[:], pop_indices)
@@ -506,40 +507,47 @@ def is_key_eligible(x):
 	return values_unique and castable
 
 def select_key_column(raw_T_full, colnames_full, cctypes_full):
-	"""
-	This function takes the raw data, colnames, and data types from an input CSV file from
-	which a btable is being created.
+    """
+    This function takes the raw data, colnames, and data types from an input CSV file from
+    which a btable is being created.
 
-	It looks for every column that's eligible to be a table key, and prompts the user to select one,
-	or create a new key. If no eligible key is found, a new one is created by default.
+    It looks for every column that's eligible to be a table key, and prompts the user to select one,
+    or create a new key. If no eligible key is found, a new one is created by default.
 
-	That way a btable can't be created without a key column.
-	"""
-	T_df = pandas.DataFrame(data=raw_T_full, columns=colnames_full)
-	eligibility = T_df.apply(is_key_eligible)
+    That way a btable can't be created without a key column.
+    """
+    T_df = pandas.DataFrame(data=raw_T_full, columns=colnames_full)
+    eligibility = T_df.apply(is_key_eligible)
 
-	key_columns = list(eligibility[eligibility].index)
-	key_columns_len = len(key_columns)
-	if key_columns_len == 0:
-		print "None of the columns in this table is eligible to be the key. A key column will be created. Press Enter to continue."
-		user_confirmation = raw_input()
-	else:
-		pt = prettytable.PrettyTable()
-		pt.field_names = ['choice', 'key column']
-		for index, key_column in enumerate(key_columns):
-			pt.add_row([index, key_column])
-		pt.add_row([key_columns_len, 'Create key column'])
-		print str(pt)
-		print "Please select which column you would like to set as the table key:"
-		user_selection = int(raw_input())
-		if user_selection in range(key_columns_len):
-			key_column = key_columns[user_selection]
-			cctypes_full[colnames_full.index(key_column)] = 'key'
-		elif user_selection == key_columns_len:
-			# Create a new table key column.
-			T_df.insert(0, 'key', range(T_df.shape[0]))
-			raw_T_full = T_df.to_records(index=False)
-			colnames_full.insert(0, 'key')
-			cctypes_full.insert(0, 'key')
+    key_eligibles = list(eligibility[eligibility].index)
+    key_eligibles_len = len(key_eligibles)
+    if key_eligibles_len == 0:
+        print "None of the columns in this table is eligible to be the key. A key column will be created. Press Enter to continue."
+        user_confirmation = raw_input()
+        raw_T_full, colnames_full, cctypes_full, key_column = insert_key_column(T_df, colnames_full, cctypes_full)
+    else:
+        key_column = None
+        pt = prettytable.PrettyTable()
+        pt.field_names = ['choice', 'key column']
+        for index, key_eligible in enumerate(key_eligibles):
+            pt.add_row([index, key_eligible])
+        pt.add_row([key_eligibles_len, 'Create key column'])
+        while key_column is None:
+            print str(pt)
+            print "Please select which column you would like to set as the table key:"
+            user_selection = int(raw_input())
+            if user_selection in range(key_eligibles_len):
+                key_column = key_eligibles[user_selection]
+                cctypes_full[colnames_full.index(key_column)] = 'key'
+            elif user_selection == key_eligibles_len:
+                raw_T_full, colnames_full, cctypes_full, key_column = insert_key_column(T_df, colnames_full, cctypes_full)
 
 	return raw_T_full, colnames_full, cctypes_full
+
+def insert_key_column(T_df, colnames_full, cctypes_full):
+    # Create a new table key column.
+    T_df.insert(0, 'key', map(str, range(T_df.shape[0])))
+    raw_T_full = T_df.to_records(index=False)
+    colnames_full.insert(0, 'key')
+    cctypes_full.insert(0, 'key')
+    return raw_T_full, colnames_full, cctypes_full, 'key'

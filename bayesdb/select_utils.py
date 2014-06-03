@@ -146,7 +146,7 @@ def compute_result_and_limit(rows, limit, queries, M_c, X_L_list, X_D_list, T, e
       aggregate_cache[query_idx] = query_function(query_args, None, None, M_c, X_L_list, X_D_list, T, engine, numsamples)
 
   # Only return one row if all aggregate functions (row_id will never be aggregate, so subtract 1 and don't return it).
-  assert queries[0][0] == functions._row_id
+  assert queries[0][0] == functions._column
   if len(aggregate_cache) == len(queries) - 1:
     limit = 1
 

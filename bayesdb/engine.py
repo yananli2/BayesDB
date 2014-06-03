@@ -201,18 +201,12 @@ class Engine(object):
     if self.persistence_layer.check_if_table_exists(tablename):
       raise utils.BayesDBError('Btable with name %s already exists.' % tablename)
 
-    # Remove row_id from table
-    if 'row_id' in colnames_full:
-      df = pandas.DataFrame(data=data, columns=colnames_full)
-      utils.df_drop(df, ['row_id'], axis=1)
-      data = df.to_records(index=False)
-      colnames_full = list(df.columns)
-
     cctypes_full = [cctypes_full[colnames_full.index(col)] for col in colnames_full]
     T_full, M_r_full, M_c_full, _ = data_utils.gen_T_and_metadata(colnames_full, data, cctypes=cctypes_full)
 
     # variables without "_full" don't include ignored columns.
-    raw_T, cctypes, colnames = data_utils.remove_ignore_cols(data, cctypes_full, colnames_full)
+    # Only drop 'ignore' columns, NOT the 'key' column
+    raw_T, cctypes, colnames = data_utils.remove_ignore_cols(data, cctypes_full, colnames_full, pop_types=['ignore'])
     T, M_r, M_c, _ = data_utils.gen_T_and_metadata(colnames, raw_T, cctypes=cctypes)
     self.persistence_layer.create_btable(tablename, cctypes_full, T, M_r, M_c, T_full, M_r_full, M_c_full, data)
 
@@ -481,16 +475,18 @@ class Engine(object):
 
     metadata_full = self.persistence_layer.get_metadata_full(tablename)
     M_c_full, M_r_full, T_full, cctypes_full = metadata_full['M_c_full'], metadata_full['M_r_full'], metadata_full['T_full'], metadata_full['cctypes_full']
+    colnames_full = utils.get_all_column_names_in_original_order(M_c_full)
+    key_column = colnames_full[cctypes_full.index('key')]
 
     X_L_list, X_D_list, M_c = self.persistence_layer.get_latent_states(tablename, modelids)
     column_lists = self.persistence_layer.get_column_lists(tablename)
 
-    # query_colnames is the list of the raw columns/functions from the columnstring, with row_id prepended
+    # query_colnames is the list of the raw columns/functions from the columnstring, with key prepended
     # queries is a list of (query_function, query_args, aggregate) tuples, where 'query_function' is
-    #   a function like row_id, column, similarity, or typicality, and 'query_args' are the function-specific
+    #   a function like column, similarity, or typicality, and 'query_args' are the function-specific
     #   arguments that that function takes (in addition to the normal arguments, like M_c, X_L_list, etc).
     #   aggregate specifies whether that individual function is aggregate or not
-    queries, query_colnames = self.parser.parse_functions(functions, M_c_full, T_full, column_lists)
+    queries, query_colnames = self.parser.parse_functions(functions, M_c_full, T_full, column_lists, colnames_full, cctypes_full, key_column)
     ##TODO check duplicates
 
     # where_conditions is a list of (c_idx, op, val) tuples, e.g. name > 6 -> (0,>,6)
@@ -533,6 +529,10 @@ class Engine(object):
 
     # Execute INTO statement
     if newtablename is not None:
+      # Data gets reordered with key in first column, so cctypes needs to be reordered too to create new btable
+      key_index = cctypes_full.index('key')
+      del cctypes_full[key_index]
+      cctypes_full.insert(0, 'key')
       self.create_btable_from_existing(newtablename, query_colnames, data, M_c_full, cctypes_full)
 
     ret = dict(data=data, columns=query_colnames)
