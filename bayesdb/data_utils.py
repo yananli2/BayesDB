@@ -358,7 +358,6 @@ def map_to_T_with_M_c(T_uncast_array, M_c):
     # WARNING: array argument is mutated
     for col_idx in range(T_uncast_array.shape[1]):
         modeltype = M_c['column_metadata'][col_idx]['modeltype']
-        print col_idx, modeltype
         if modeltype == 'normal_inverse_gamma': continue
         # copy.copy else you mutate M_c
         mapping = copy.copy(M_c['column_metadata'][col_idx]['code_to_value'])
