@@ -193,7 +193,7 @@ class Engine(object):
     ret['message'] = 'Updated schema.'
     return ret
     
-  def create_btable_from_existing(self, tablename, colnames_full, data, M_c):
+  def create_btable_from_existing(self, tablename, colnames_full, data, M_c_full, cctypes_full):
     """
     Used in INTO statements to create a new btable as a portion of an existing one.
     """
@@ -206,9 +206,9 @@ class Engine(object):
       df = pandas.DataFrame(data=data, columns=colnames_full)
       utils.df_drop(df, ['row_id'], axis=1)
       data = df.to_records(index=False)
-      colnames_full = df.columns
+      colnames_full = list(df.columns)
 
-    cctypes_full = [utils.get_cctype_from_M_c(M_c, col) for col in colnames_full]
+    cctypes_full = [cctypes_full[colnames_full.index(col)] for col in colnames_full]
     T_full, M_r_full, M_c_full, _ = data_utils.gen_T_and_metadata(colnames_full, data, cctypes=cctypes_full)
 
     # variables without "_full" don't include ignored columns.
@@ -480,7 +480,7 @@ class Engine(object):
       raise utils.BayesDBInvalidBtableError(tablename)
 
     metadata_full = self.persistence_layer.get_metadata_full(tablename)
-    M_c_full, M_r_full, T_full = metadata_full['M_c_full'], metadata_full['M_r_full'], metadata_full['T_full']
+    M_c_full, M_r_full, T_full, cctypes_full = metadata_full['M_c_full'], metadata_full['M_r_full'], metadata_full['T_full'], metadata_full['cctypes_full']
 
     X_L_list, X_D_list, M_c = self.persistence_layer.get_latent_states(tablename, modelids)
     column_lists = self.persistence_layer.get_column_lists(tablename)
@@ -533,7 +533,7 @@ class Engine(object):
 
     # Execute INTO statement
     if newtablename is not None:
-      self.create_btable_from_existing(newtablename, query_colnames, data, M_c_full)
+      self.create_btable_from_existing(newtablename, query_colnames, data, M_c_full, cctypes_full)
 
     ret = dict(data=data, columns=query_colnames)
     if plot:
