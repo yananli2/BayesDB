@@ -475,7 +475,10 @@ class Engine(object):
     """
     if not self.persistence_layer.check_if_table_exists(tablename):
       raise utils.BayesDBInvalidBtableError(tablename)
-    M_c, M_r, T = self.persistence_layer.get_metadata_and_table(tablename)
+
+    metadata_full = self.persistence_layer.get_metadata_full(tablename)
+    M_c_full, M_r_full, T_full = metadata_full['M_c_full'], metadata_full['M_r_full'], metadata_full['T_full']
+
     X_L_list, X_D_list, M_c = self.persistence_layer.get_latent_states(tablename, modelids)
     column_lists = self.persistence_layer.get_column_lists(tablename)
 
@@ -484,15 +487,14 @@ class Engine(object):
     #   a function like row_id, column, similarity, or typicality, and 'query_args' are the function-specific
     #   arguments that that function takes (in addition to the normal arguments, like M_c, X_L_list, etc).
     #   aggregate specifies whether that individual function is aggregate or not
-
-    queries, query_colnames = self.parser.parse_functions(functions, M_c, T, column_lists)
+    queries, query_colnames = self.parser.parse_functions(functions, M_c_full, T_full, column_lists)
     ##TODO check duplicates
 
     # where_conditions is a list of (c_idx, op, val) tuples, e.g. name > 6 -> (0,>,6)
     if whereclause == None: 
       where_conditions = None
     else:
-      where_conditions = self.parser.parse_where_clause(whereclause, M_c, T, column_lists)
+      where_conditions = self.parser.parse_where_clause(whereclause, M_c_full, T_full, column_lists)
     # If there are no models, make sure that we aren't using functions that require models.
     # TODO: make this less hardcoded
     if len(X_L_list) == 0:
@@ -510,8 +512,9 @@ class Engine(object):
               raise utils.BayesDBNoModelsError(tablename)              
     # List of rows; contains actual data values (not categorical codes, or functions),
     # missing values imputed already, and rows that didn't satsify where clause filtered out.
-    filtered_rows = select_utils.filter_and_impute_rows(where_conditions, T, M_c, X_L_list, X_D_list, self,
+    filtered_rows = select_utils.filter_and_impute_rows(where_conditions, T_full, M_c_full, X_L_list, X_D_list, self,
                                                         query_colnames, impute_confidence, numsamples, tablename)
+
     ## TODO: In order to avoid double-calling functions when we both select them and order by them,
     ## we should augment filtered_rows here with all functions that are going to be selected
     ## (and maybe temporarily augmented with all functions that will be ordered only)
@@ -519,26 +522,26 @@ class Engine(object):
 
     # Simply rearranges the order of the rows in filtered_rows according to the order_by query.
     if order_by != False:
-      order_by = self.parser.parse_order_by_clause(order_by, M_c, T, column_lists)
-    filtered_rows = select_utils.order_rows(filtered_rows, order_by, M_c, X_L_list, X_D_list, T, self, column_lists, numsamples)
+      order_by = self.parser.parse_order_by_clause(order_by, M_c_full, T_full, column_lists)
+    filtered_rows = select_utils.order_rows(filtered_rows, order_by, M_c_full, X_L_list, X_D_list, T_full, self, column_lists, numsamples)
 
     # Iterate through each row, compute the queried functions for each row, and limit the number of returned rows.
-    data = select_utils.compute_result_and_limit(filtered_rows, limit, queries, M_c, X_L_list, X_D_list, T, self, numsamples)
+    data = select_utils.compute_result_and_limit(filtered_rows, limit, queries, M_c_full, X_L_list, X_D_list, T_full, self, numsamples)
 
     # Execute INTO statement
     if newtablename is not None:
-      self.create_btable_from_existing(newtablename, query_colnames, data, M_c)
+      self.create_btable_from_existing(newtablename, query_colnames, data, M_c_full)
 
     ret = dict(data=data, columns=query_colnames)
     if plot:
-      ret['M_c'] = M_c
+      ret['M_c_full'] = M_c_full
     elif summarize | hist | freq:
       if summarize:
-        data, columns = utils.summarize_table(ret['data'], ret['columns'], M_c)
+        data, columns = utils.summarize_table(ret['data'], ret['columns'], M_c_full)
       elif hist:
-        data, columns = utils.histogram_table(ret['data'], ret['columns'], M_c)
+        data, columns = utils.histogram_table(ret['data'], ret['columns'], M_c_full)
       elif freq:
-        data, columns = utils.freq_table(ret['data'], ret['columns'], M_c)
+        data, columns = utils.freq_table(ret['data'], ret['columns'], M_c_full)
       ret['data'] = data
       ret['columns'] = columns
     return ret

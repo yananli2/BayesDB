@@ -66,7 +66,7 @@ def convert_row_from_codes_to_values(row, M_c):
       ret.append(code)
   return tuple(ret)
 
-def filter_and_impute_rows(where_conditions, T, M_c, X_L_list, X_D_list, engine, query_colnames,
+def filter_and_impute_rows(where_conditions, T_full, M_c_full, X_L_list, X_D_list, engine, query_colnames,
                            impute_confidence, numsamples, tablename):
     """
     impute_confidence: if None, don't impute. otherwise, this is the imput confidence
@@ -75,14 +75,14 @@ def filter_and_impute_rows(where_conditions, T, M_c, X_L_list, X_D_list, engine,
     """
     filtered_rows = list()
     if impute_confidence is not None:
-      t_array = numpy.array(T, dtype=float)
+      t_array = numpy.array(T_full, dtype=float)
       infer_colnames = query_colnames[1:] # remove row_id from front of query_columns, so that infer doesn't infer row_id
-      query_col_indices = [M_c['name_to_idx'][colname] for colname in infer_colnames]
+      query_col_indices = [M_c_full['name_to_idx'][colname] for colname in infer_colnames]
 
-    for row_id, T_row in enumerate(T):
-      row_values = convert_row_from_codes_to_values(T_row, M_c) ## Convert row from codes to values
+    for row_id, T_row in enumerate(T_full):
+      row_values = convert_row_from_codes_to_values(T_row, M_c_full) ## Convert row from codes to values
 
-      if is_row_valid(row_id, row_values, where_conditions, M_c, X_L_list, X_D_list, T, engine, tablename, numsamples): ## Where clause filtering.
+      if is_row_valid(row_id, row_values, where_conditions, M_c_full, X_L_list, X_D_list, T_full, engine, tablename, numsamples): ## Where clause filtering.
         if impute_confidence is not None:
           ## Determine which values are 'nan', which need to be imputed.
           ## Only impute columns in 'query_colnames'
@@ -90,13 +90,13 @@ def filter_and_impute_rows(where_conditions, T, M_c, X_L_list, X_D_list, engine,
             if numpy.isnan(t_array[row_id, col_id]):
               # Found missing value! Try to fill it in.
               # row_id, col_id is Q. Y is givens: All non-nan values in this row
-              Y = [(row_id, cidx, t_array[row_id, cidx]) for cidx in M_c['name_to_idx'].values() \
+              Y = [(row_id, cidx, t_array[row_id, cidx]) for cidx in M_c_full['name_to_idx'].values() \
                    if not numpy.isnan(t_array[row_id, cidx])]
-              code = utils.infer(M_c, X_L_list, X_D_list, Y, row_id, col_id, numsamples,
+              code = utils.infer(M_c_full, X_L_list, X_D_list, Y, row_id, col_id, numsamples,
                                  impute_confidence, engine)
               if code is not None:
                 # Inferred successfully! Fill in the new value.
-                value = du.convert_code_to_value(M_c, col_id, code)
+                value = du.convert_code_to_value(M_c_full, col_id, code)
                 row_values = list(row_values)
                 row_values[col_id] = value
                 row_values = tuple(row_values)

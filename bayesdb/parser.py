@@ -746,7 +746,7 @@ class Parser(object):
         
         return function_list
 
-    def parse_functions(self, function_groups, M_c=None, T=None, column_lists=None):
+    def parse_functions(self, function_groups, M_c_full=None, T_full=None, column_lists=None):
         '''
         Generates two lists of functions, arguments, aggregate tuples. 
         Returns queries, query_colnames
@@ -763,63 +763,63 @@ class Parser(object):
         query_colnames = ['row_id'] 
         queries = [(functions._row_id, None, False)]
 
-        for function_group in function_groups: 
+        for function_group in function_groups:
             if function_group.function_id == 'predictive probability':
-                queries.append((functions._predictive_probability, 
-                                self.get_args_pred_prob(function_group, M_c), 
+                queries.append((functions._predictive_probability,
+                                self.get_args_pred_prob(function_group, M_c_full),
                                 False))
                 query_colnames.append(' '.join(function_group))
             elif function_group.function_id == 'typicality':
                 if function_group.column != '':
-                    queries.append((functions._col_typicality, 
-                                    self.get_args_typicality(function_group, M_c), 
+                    queries.append((functions._col_typicality,
+                                    self.get_args_typicality(function_group, M_c_full),
                                     True))
                 else:
                     queries.append((functions._row_typicality,
-                                    self.get_args_typicality(function_group, M_c), 
+                                    self.get_args_typicality(function_group, M_c_full), 
                                     False))
                 query_colnames.append(' '.join(function_group))
             elif function_group.function_id == 'probability':
-                queries.append((functions._probability, 
-                                self.get_args_prob(function_group, M_c), 
+                queries.append((functions._probability,
+                                self.get_args_prob(function_group, M_c_full),
                                 True))
                 query_colnames.append(' '.join(function_group))
             elif function_group.function_id == 'similarity':
-                assert M_c is not None
-                queries.append((functions._similarity, 
-                                self.get_args_similarity(function_group, M_c, T, column_lists),
+                assert M_c_full is not None
+                queries.append((functions._similarity,
+                                self.get_args_similarity(function_group, M_c_full, T_full, column_lists),
                                 False))
                 pre_name_list = function_group.asList()
                 if function_group.with_respect_to != '':
                     pre_name_list[-1] = ', '.join(pre_name_list[-1])
                 query_colnames.append(' '.join(pre_name_list))
             elif function_group.function_id == 'dependence probability':
-                queries.append((functions._dependence_probability, 
-                                self.get_args_of_with(function_group, M_c), 
+                queries.append((functions._dependence_probability,
+                                self.get_args_of_with(function_group, M_c_full),
                                 True))
                 query_colnames.append(' '.join(function_group))
             elif function_group.function_id == 'mutual information':
-                queries.append((functions._mutual_information, 
-                                self.get_args_of_with(function_group, M_c), 
+                queries.append((functions._mutual_information,
+                                self.get_args_of_with(function_group, M_c_full),
                                 True))
                 query_colnames.append(' '.join(function_group))
             elif function_group.function_id == 'correlation':
-                queries.append((functions._correlation, 
-                                self.get_args_of_with(function_group, M_c), 
+                queries.append((functions._correlation,
+                                self.get_args_of_with(function_group, M_c_full),
                                 True))
                 query_colnames.append(' '.join(function_group))
             ## single column, column_list, or *
             elif function_group.column_id != '':
                 column_name = function_group.column_id
-                assert M_c is not None
-                index_list, name_list = self.parse_column_set(column_name, M_c, column_lists)
+                assert M_c_full is not None
+                index_list, name_list = self.parse_column_set(column_name, M_c_full, column_lists)
                 queries += [(functions._column, column_index , False) for column_index in index_list]
                 query_colnames += [name for name in name_list]
-            else: 
+            else:
                 raise utils.BayesDBParseError("Invalid query: could not parse function")
         return queries, query_colnames
 
-    def parse_column_set(self, column_name, M_c, column_lists = None):
+    def parse_column_set(self, column_name, M_c_full, column_lists = None):
         """
         given a string representation of a column name or column_list,
         returns a list of the column indexes, list of column names. 
@@ -827,14 +827,14 @@ class Parser(object):
         index_list = []
         name_list = []
         if column_name == '*':
-            all_columns = utils.get_all_column_names_in_original_order(M_c)
-            index_list += [M_c['name_to_idx'][column_name] for column_name in all_columns]
+            all_columns = utils.get_all_column_names_in_original_order(M_c_full)
+            index_list += [M_c_full['name_to_idx'][column_name] for column_name in all_columns]
             name_list += [name for name in all_columns]
         elif (column_lists is not None) and (column_name in column_lists.keys()):
-            index_list += [M_c['name_to_idx'][name] for name in column_lists[column_name]]
+            index_list += [M_c_full['name_to_idx'][name] for name in column_lists[column_name]]
             name_list += [name for name in column_lists[column_name]]
-        elif column_name in M_c['name_to_idx']:
-            index_list += [M_c['name_to_idx'][column_name]]
+        elif column_name in M_c_full['name_to_idx']:
+            index_list += [M_c_full['name_to_idx'][column_name]]
             name_list += [column_name]
         else:
             raise utils.BayesDBParseError("Invalid query: %s not found." % column_name)
